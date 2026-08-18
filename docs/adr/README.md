@@ -62,6 +62,7 @@ directory but aren't part of that comparison.
 | [0048](0048-fork-for-tab5.md) | Fork for M5Stack Tab5 — verified ESP32-P4/DSI/keyboard-accessory facts and what actually needs to change vs. a rename | Proposed |
 | [0049](0049-screenshot-before-mirror.md) | Screenshot before mirror — pioarduino platform line resolved, standalone single-frame BMP capture as the smallest first proof on real hardware | **Accepted — implemented, verified on real hardware** |
 | [0050](0050-continuous-mirror.md) | Continuous mirror — 1280x720 tile geometry, library reused unchanged, verified live on real hardware (physical display + browser in sync) | **Accepted — implemented, verified on real hardware** |
+| [0051](0051-tab5-dashboard-mockup.md) | Tab5 dashboard mockup — CSS-drawn (no photo), three-layer bezel, docked keyboard reusing the Cardputer ADV's own key CSS, every number measured from real hardware photos | **Accepted — implemented, verified live in browser** |
 
 ## Hardware facts these ADRs rest on
 

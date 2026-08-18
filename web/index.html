@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>ADV Mirror</title>
+<title>Tab5 Mirror</title>
 <style>
 :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#c9d1d9;--dim:#8b949e;--ok:#3fb950;--warn:#d29922;--err:#f85149;--accent:#58a6ff}
 *{box-sizing:border-box}
@@ -166,6 +166,16 @@ button.on{border-color:var(--ok);color:var(--ok)}
   opacity:0;transition:opacity .15s}
 #g0state.show{opacity:1}
 .ar{color:var(--ok);font-weight:600}
+/* Tab5 mockup: hide the Cardputer ADV's physical-hardware chrome that has no
+ * Tab5 equivalent (BtnG0/BtnRst/1262 HAT are ADV-specific top-edge hardware;
+ * the on-case key grid maps TCA8418 row/col coordinates that don't exist on
+ * Tab5's I2C keyboard accessory). Hidden via display:none rather than
+ * removed from the DOM -- the JS below still calls getElementById() on
+ * #btng0/#btnrst/#g0state/#kb and getElementById on a missing id would be a
+ * silent null, not a crash, but keeping the elements present is simpler than
+ * auditing every call site right now. Proper Tab5 keyboard UI is its own
+ * milestone (see docs/adr/, the I2C keyboard accessory work), not this one. */
+#topedge,#g0state,#devkb{display:none}
 
 .note code{color:var(--accent)}
 #fmt{border-color:var(--err);color:var(--err)}
@@ -226,139 +236,155 @@ button.on{border-color:var(--ok);color:var(--ok)}
  * See ADR 0045. */
 #mkbInput{position:fixed;top:0;left:0;width:1px;height:1px;padding:0;margin:0;
   border:0;opacity:0;font-size:16px;pointer-events:none}
-/* ---- Cardputer ADV mockup -------------------------------------------------
- * Every proportion is MEASURED from the product photo (1200x1200 front-on),
- * not styled by eye. Case bbox 851x547 -> aspect 1.5558. Fractions of case:
- *   glass  left .2479  top .0530  w .2973  h .2779
- *   keys   left .0306  top .4004  w .9365  h .5356   (14 domes, pitch 58.38px
- *                                                     sd 0.35 -> no wide key)
- *   cell   h/w 1.3189   legend .4805 of cell h   dome 24px of 77px pitch
- * Sampled colours: case #e5e7e5, lower case #d3d3d3, inter-row #bfbfbf,
- * legend #e1e7e3, dome #1e1e1e, bezel #0a0c0b.
- * ONE variable drives the whole thing: --cw. Everything else is calc() off it,
- * so the mockup scales as a rigid unit and cannot drift out of proportion.
+/* ---- Tab5 + keyboard mockup, CSS-drawn (no product photo) -----------------
+ * A photo-background first attempt didn't line up -- the measured screen
+ * rectangle didn't match the mirror canvas's actual 1280x720 (16:9), so the
+ * canvas visibly overflowed the bezel. CSS avoids that failure mode
+ * entirely: no image, everything below is shapes -- crisp at any zoom
+ * level, and it dropped ~79KB of flash the embedded photo cost.
+ *
+ * Docked layout: Keyboard_for_Tab5_16_*.webp (the keyboard actually
+ * attached, not mid-attach the way A164_operate_01.jpg's angled hand shot
+ * showed it) is the definitive reference -- the keyboard docks directly
+ * BELOW the screen, same width, no gap, not beside it. #tab5unit is a
+ * simple centred column, #dev and #tab5kb share the identical --cw formula
+ * so their widths match exactly, and the gap between them is small enough
+ * to read as one docked unit rather than two floating panels.
+ *
+ * Bezel: two layers per the explicit correction -- a thin WHITE bezel is
+ * the tablet's own case edge (#dev's background, thin margin), and inside
+ * it a BLACK bezel sits directly around the screen (#devscreen, the black
+ * box) -- both thin, not the wide fixed-16:9-solve margin the first
+ * attempt used. Canvas fits by width and centres (#devscreen canvas), the
+ * same accepted-imperfect-fit approach the Cardputer ADV mockup used for
+ * its own glass-vs-panel aspect mismatch -- consistent with dropping the
+ * "solve bezel width for an exact 16:9" idea now that bezels are thin
+ * enough for the gap to not matter visually.
  */
-#dev{--cw:min(820px, calc(100vw - 28px));
-  /* Top margin clears whatever protrudes ABOVE the case top edge, so it
-     doesn't get clipped against whatever sits above. Used to be sized to the
-     BtnG0/BtnRst tabs; now sized to #devhat instead, since the tabs shrank to
-     1/3 height (see #topedge .tbtn) and sit embedded within the hat's height
-     rather than sticking out past it -- the hat is the taller of the two. */
-  position:relative;margin-top:max(20px, calc(var(--cw)*0.030));width:var(--cw);height:calc(var(--cw)/1.5558);
-  background:linear-gradient(#eceeec 0%,#e5e7e5 38%,#dcdedc 62%,#d3d3d3 100%);
-  border-radius:calc(var(--cw)*0.022);
-  box-shadow:0 14px 34px #000a, inset 0 1px 0 #fff, inset 0 -2px 4px #0002;
-  border:1px solid #c2c4c2;box-sizing:border-box}
+/* Gap cut to near-flush -- a real dock has a thin seam, not visible
+ * daylight between the two pieces (see #dev/#tab5kb's asymmetric corner
+ * radii, which do the rest of the "actually attached" look). */
+#tab5unit{--tu:min(900px, calc(100vw - 28px));
+  display:flex;flex-direction:column;align-items:center;
+  gap:max(2px, calc(var(--tu)*0.0025));
+  margin-top:max(20px, calc(var(--tu)*0.024))}
 
-/* Recessed upper deck the display and stickers sit on. */
-#devtop{position:absolute;left:2.2%;top:3.2%;width:95.6%;height:33.5%;
-  background:linear-gradient(#e9ebe9,#dfe1df);
-  border-radius:calc(var(--cw)*0.012);box-shadow:inset 0 1px 2px #0000001a}
+/* Screen module aspect 1.661 -- measured directly off a real top-down photo
+ * of the actual hardware (Screenshot 2026-08-18 5.55.56 AM.png), row-
+ * brightness-profiled for the screen-module-only region (excludes the
+ * keyboard below it): case top ~y28, screen content y58-342, bottom bezel
+ * ends ~y384 where the keyboard starts, all at image width 598 ~= case
+ * width (the photo crops nearly edge-to-edge on the device). 598/360=1.661.
+ * Supersedes the earlier 1.6 from the studio photo's full silhouette
+ * (which likely included a bit of the dock connector nub, not just the
+ * screen module). */
+/* Corners are rounded ASYMMETRICALLY -- more at the top (the tablet's own
+ * outer corners), much less at the bottom (where the keyboard docks on,
+ * see #tab5unit/#tab5kb below -- a real dock seam is closer to flat than
+ * round). #devbezel below must nest the SAME way, radius reduced by
+ * roughly its own inset margin, or its corners either poke past #dev's
+ * curve or round MORE than #dev's -- both read as the white margin
+ * "rolling off"/vanishing exactly at the corner, which is the bug this
+ * fixes: nested rounded rects need inner_radius = outer_radius - margin,
+ * not an independently-chosen smaller value. */
+#dev{--cw:min(900px, calc(100vw - 28px));
+  position:relative;width:var(--cw);height:calc(var(--cw)/1.661);
+  background:linear-gradient(155deg,#fbfbfb 0%,#f1f1f1 45%,#e6e6e6 100%);
+  border-radius:calc(var(--cw)*0.045) calc(var(--cw)*0.045)
+                calc(var(--cw)*0.012) calc(var(--cw)*0.012);
+  box-shadow:0 14px 34px #0006, inset 0 1px 0 #fff, inset 0 -2px 4px #0001;
+  border:1px solid #dcdcdc;box-sizing:border-box}
 
-/* Display glass: measured rectangle. The canvas is positioned INSIDE this. */
-#devscreen{position:absolute;left:24.79%;top:5.30%;width:29.73%;height:27.79%;
-  background:#0a0c0b;border-radius:calc(var(--cw)*0.006);
-  box-shadow:inset 0 0 0 2px #17191a, 0 1px 3px #0006;
+/* Three real layers, matching the explicit correction -- white case, THEN
+ * a black bezel ring (where the camera actually lives, wider on the right
+ * to hold it), THEN the screen/canvas. Previously #devscreen was both the
+ * bezel color AND the screen at once, with no distinct black ring for the
+ * camera to sit in -- that's what this splits apart.
+ *
+ * #devbezel: inset from #dev by the white margin (0.6%/1.0%, confirmed the
+ * right width). Black, fills nearly all of #dev. Radius = #dev's own
+ * radius minus that inset (see block comment above) at each corner, so
+ * the white margin reads as a constant width all the way around,
+ * including at the corners -- the actual "rolls off" fix.
+ * #devscreen: inset again from #devbezel -- 2%/3% on left/top/bottom, but
+ * 10% on the right, so the black bezel ring is visibly WIDER there,
+ * exactly wide enough to hold the camera without it overlapping the
+ * mirrored screen content. */
+#devbezel{position:absolute;left:0.6%;top:1.0%;width:98.8%;height:98%;
+  background:#000;
+  border-radius:calc(var(--cw)*0.039) calc(var(--cw)*0.039)
+                calc(var(--cw)*0.006) calc(var(--cw)*0.006)}
+
+/* Screen sits CENTRED in the black bezel -- symmetric margins (4% sides,
+ * 6.5% top/bottom, aspect-corrected the same way #dev's own bezel is)
+ * rather than stealing extra room on the right for the camera. The camera
+ * lives IN that same symmetric margin band instead (top-right corner),
+ * not in a widened one. */
+#devcam{position:absolute;right:1.4%;top:16%;
+  width:1.8%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#4a4a4a,#0a0a0a 70%);
+  box-shadow:0 0 0 1px #2a2a2a}
+
+#devscreen{position:absolute;left:4%;top:6.5%;width:92%;height:87%;
   display:flex;align-items:center;justify-content:center;overflow:hidden}
-/* The 240x135 panel is 1.778 but the glass module is 1.664 -- the real bezel is
- * not symmetric. Fit by WIDTH and centre, which is what the hardware does. */
-#devscreen canvas{width:100%;height:auto;border-radius:0}
+#devscreen canvas{width:100%;height:auto;display:block;border-radius:0}
 
-/* Left silk label and right module sticker: simplified, they are printed
- * artwork and carry no state. */
-/* MEASURED (ADR 0031). The earlier box was eyeballed and ran 2.2% too low at
- * the bottom, which is what buried the screws. Isolating it needed the scan
- * bounded above the keyboard strip -- that strip is also white, and an
- * unbounded row profile locks onto it instead (returns y 44.79%). */
-/* The CARDPUTER ADV label is a PHOTOGRAPH, superseding the CSS reconstruction
- * of ADR 0034. That version was measured correctly -- bracket geometry, cap
- * heights, the 1.158 width correction -- and still did not read as the real
- * label, because the things it could not carry are the ones the eye uses:
- * M5's actual typeface, the printing's slight ink spread, the panel's texture
- * and its soft edge shadow. Measuring the right quantities is not the same as
- * reproducing the artefact. See ADR 0035.
- *
- * Box MEASURED off the panel's own dark border groove, keying on a local dark
- * line with BRIGHTER pixels on both sides -- a plain threshold does not work
- * here (panel fill 232 vs surrounding plastic 214 is only 17 levels apart, and
- * the plastic has a brightness gradient toward the screen, so any global cut
- * either leaks into the case or clips a corner):
- *     x 1.880-22.914%   y 2.559-30.713%
- * The old CSS box was 2.120-23.040% x 2.740-31.080%, close but not measured.
- *
- * object-fit:fill -- the box IS the crop's aspect (1.1613 vs 1.1624), so there
- * is nothing to letterbox. */
-#devlabel{position:absolute;left:1.880%;top:2.559%;width:21.034%;height:28.154%;
-  border-radius:calc(var(--cw)*0.005);overflow:hidden;
-  box-shadow:0 1px 2px #0000001f}
-#devlabel img{width:100%;height:100%;display:block;object-fit:fill}
-/* The Stamp-S3A module is a PHOTOGRAPH, not CSS (ADR 0033). It carries the
- * real pinout -- GPIO numbers, the BTN/USB legends, the bus-pin column -- and
- * this is a tool whose job is talking to those pins, so inventing plausible
- * artwork here would put wrong pin numbers on screen. The previous rainbow
- * gradient was decorative and admitted as such.
- *
- * Box MEASURED from the product photo off the module's black bezel, with the
- * scan bounded right of the glass (an unbounded dark scan locks onto the
- * screen edge and returns x from 62.5%): x 68.39-99.18%, y 2.19-36.38%.
- * The old box was eyeballed and ran 2.2% short at the top and 4.7% at the
- * bottom. Its left edge, 68.4%, was already right -- an independent check on
- * the measurement.
- *
- * object-fit:fill, not contain: the box IS the crop's own aspect ratio
- * (263x188 = 1.399), so there is nothing to letterbox, and `contain` would
- * silently hide a future aspect mismatch instead of showing it. */
-#devsticker{position:absolute;left:68.39%;top:2.19%;width:30.79%;height:34.19%;
-  border-radius:calc(var(--cw)*0.004);overflow:hidden}
-#devsticker img{display:block;width:100%;height:100%;object-fit:fill}
-#devm5{position:absolute;left:60.5%;top:11%;font-size:calc(var(--cw)*0.045);
-  font-weight:800;color:#d7d9d7;text-shadow:0 1px 0 #fff,0 -1px 1px #0000001f;
-  letter-spacing:-.02em;pointer-events:none}
-
-/* ---- Front-face detail, all MEASURED from the front photo (ADR 0030) ------
- * screws  cx 15.16% / 64.75%, cy 32.81%, d 3.47% of case width
- * mic     icon 9.87-11.05% x, 22.85-27.06% y; grille slots cx ~10.4%
- * silk    cyan registration brackets span 2.59-22.21% x, 4.57-21.76% y
- * The S3A sticker is a dense multicolour pinout label; it is rendered as a
- * tinted panel with a colour band rather than reproduced -- the real artwork
- * is unreadable below ~200px and faking its text would be invented detail. */
-
-/* The mic is printed ON the label (confirmed at magnification), so it is
- * emitted after it. Orange dot measured x 9.87-11.05%, y 22.85-27.06%,
- * colour (243,103,50); the dark cradle around it extends the whole icon to
- * x 8.93-11.87%, y 22.85-29.43%. */
-/* MEASURED from the product photo, correcting two errors at once (ADR 0031):
- * the slots sit at y 31.81-35.47%, BELOW the label's bottom edge (31.08%) on
- * bare plastic -- the old 26.0% put them under the label, where they were
- * invisible regardless of colour. And they are BLACK rounded pills, not the
- * orange I had assumed by association with the mic; the darkest 15% of those
- * pixels reads (0,0,0) against (206,206,206) plastic. */
-#devgrille{position:absolute;left:9.40%;top:31.81%;width:2.01%;height:3.66%;
-  pointer-events:none}
-#devgrille i{position:absolute;top:0;height:100%;width:29.9%;background:#0a0a0a;
-  border-radius:calc(var(--cw)*0.004)}
-#devgrille i.a{left:0}
-#devgrille i.b{left:70.1%}
-
-
-/* Keyboard well. #kb is placed at the measured rectangle and its own --ku is
- * driven from case width, NOT the viewport, so keys stay locked to the case. */
-#devkb{position:absolute;left:3.06%;top:40.04%;width:93.65%}
-#dev #kb{background:transparent;border:0;border-radius:0;padding:0;
-  width:100%;max-width:none}
-#dev .krow{grid-template-columns:repeat(14,1fr)}
-
-/* Zoom control: on the case, bottom-right of the deck, near the display. */
-/* Zoom sits on the bare deck strip between the glass (ends 54.4%) and the
- * S3A sticker (starts 68.4%) -- 14% of case width -- and below the M5 logo
- * band (11-18%). It is NOT in the gap between deck and keyboard: that gap is
- * 3.34% of case height and the button is taller than it at EVERY viewport
- * width, so it would have overlapped the number row. See ADR 0028. */
-#zoombtn{position:absolute;left:55.4%;top:23%;width:12.2%;z-index:4;
+/* Zoom control: bottom-right corner of the screen glass. */
+#zoombtn{position:absolute;right:3%;bottom:3%;width:11%;z-index:4;
   font-size:calc(var(--cw)*0.016);line-height:1.25;padding:3px 0;border-radius:5px;
-  background:#f2f4f2;color:#3a3d3a;border:1px solid #c2c4c2;text-align:center;
+  background:#f2f4f2cc;color:#3a3d3a;border:1px solid #c2c4c2;text-align:center;
   white-space:nowrap;overflow:hidden}
 #zoombtn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---- Tab5 keyboard mockup, CSS-drawn ---------------------------------------
+ * A separate physical accessory (docks via Ext.Port1: I2C addr 0x6D, own
+ * bus), not integrated into the tablet body the way the Cardputer ADV's
+ * keys are -- #tab5unit lays it out beside/below #dev, not as a sub-region
+ * inside it. Reuses the Cardputer ADV's OWN .krow/.key/.lgd/.dome/.pri
+ * system (defined near the top of this stylesheet) rather than inventing a
+ * new one: the Tab5 accessory's real design is the SAME two-part
+ * legend-strip-over-rubber-dome key, matched from the product photo
+ * (Keyboard_for_Tab5_7_*.webp) row by row --
+ *   row1  esc 1 2 3 4 5 6 7 8 9 0 - + del      (esc yellow, del pink)
+ *   row2  ` ~  ! ?  @  #  $  %  ^  &  * /  ( <  ) >  [ {  ] }  \ |
+ *         (a genuinely separate physical row of symbol keys on this
+ *         keyboard, not a shift-corner on the number row)
+ *   row3  tab Q W E R T Y U I O P ; ' [backspace]   (tab blue)
+ *   row4  sym Aa A S D F G H J K L ▲ _ [ok/enter]   (sym blue, Aa orange)
+ *   row5  ctrl alt Z X C V B N M · ◀ ▼ ▶ [space]    (ctrl blue, all 14 same size)
+ * White body (see block comment above -- the docking photo, not the studio
+ * shot, is what corrected this: the studio photo's grey background made the
+ * accessory's own plastic read darker than it is against a white page).
+ * Purely a visual mockup for now: no click-to-type wiring, unlike #kb (the
+ * Cardputer ADV's still-present but hidden functional keyboard -- see the
+ * #topedge/#g0state/#devkb display:none rule above). Real Tab5 keyboard
+ * input is its own milestone, once IInputSink exists for the I2C accessory
+ * protocol -- the real key VALUES this sends (Normal/HID/Character mode)
+ * aren't settled yet, so this grid has no data-row/data-col the way #kb's
+ * JS-generated keys do. */
+/* Corners mirror #dev's, flipped: flat where it docks to the tablet above
+ * (top corners, matching #dev's flat bottom corners), rounded at the
+ * bottom (the keyboard's own outer edge). */
+#tab5kb{--cw:min(900px, calc(100vw - 28px));width:var(--cw);
+  background:linear-gradient(#ffffff,#f0f0f0);
+  border-radius:calc(var(--cw)*0.012) calc(var(--cw)*0.012)
+                calc(var(--cw)*0.045) calc(var(--cw)*0.045);
+  box-shadow:0 10px 24px #0004, inset 0 1px 0 #fff, inset 0 -1px 0 #0001;
+  border:1px solid #dcdcdc;box-sizing:border-box;
+  padding:calc(var(--cw)*0.014) calc(var(--cw)*0.012)}
+/* --cw uses the IDENTICAL formula to #dev's, on purpose, so the two widths
+ * match exactly (see #tab5unit's block comment) -- not a shared variable,
+ * just the same expression, since each element still needs its own --cw
+ * for the calc()s below (--ku, radii, etc). */
+#tab5kb .krow{grid-template-columns:repeat(14,1fr)}
+#tab5kb .krow+.krow{margin-top:calc(var(--cw)*0.006)}
+#tab5kb .key{--ku:calc(var(--cw)*0.058)}
+/* Row 2 (symbols) keys carry two short glyphs in .pri -- no separate .lgd/
+ * .dome split needed since the photo's symbol row has no blank dome cap
+ * below it worth rendering differently from row1/3/4/5's. Reusing .key/.lgd
+ * /.dome keeps every row visually consistent. */
+.key.cap-yellow .lgd{background:#f2c94c;color:#3a2a00}
+.key.cap-pink .lgd{background:#ec6ea6;color:#fff}
 
 /* Popped-out state: the large canvas returns to #shell above the mockup and
  * the glass shows a placeholder rather than an empty black hole. */
@@ -403,16 +429,18 @@ button.on{border-color:var(--ok);color:var(--ok)}
 </span>
 <input id="mkbInput" type="text" tabindex="-1" aria-hidden="true"
   autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-<h1>ADV Mirror</h1>
-<div class="sub">240×135 RGB565</div>
+<h1>Tab5 Mirror</h1>
+<div class="sub">1280×720 RGB565</div>
 <!-- #shell precedes #dev in DOM order (ADR 0045) so that when zoom pops the
      canvas out, it renders ABOVE the case mockup instead of below it --
      that's the reachable spot on a phone screen once the keyboard is up. -->
 <div id="shell" hidden></div>
-<!-- Mockup. Proportions measured from the product photo -- see ADR 0028.
-     The canvas MOVES between #devscreen (inset) and #shell (zoomed out); it is
-     never duplicated, because two live canvases would double per-frame draw
-     cost on a stream already budgeted in ms/tile. -->
+<!-- Mockup: CSS-drawn case, camera dot on the right (see #dev's CSS comment
+     for why -- a photo-background first attempt didn't line up). The canvas
+     MOVES between #devscreen (inset) and #shell (zoomed out); it is never
+     duplicated, because two live canvases would double per-frame draw cost
+     on a stream already budgeted in ms/tile. -->
+<div id="tab5unit">
 <div id="dev">
   <div id="topedge">
     <div id="devhat" title="1262 HAT — SX1262 LoRa + GNSS (mockup)">
@@ -422,27 +450,102 @@ button.on{border-color:var(--ok);color:var(--ok)}
     <button class="tbtn rst" id="btnrst" title="BtnRst — drives the EN line, cutting power to the SoC. Physical only." aria-label="BtnRst"></button>
   </div>
   <div id="g0state" role="status"></div>
-  <div id="devtop"></div>
-  <!-- PAINT ORDER IS LOAD-BEARING: the label is a solid white panel and must be
-       emitted BEFORE the screws and grille, which sit on bare plastic BELOW its
-       bottom edge and were previously buried under it. The mic is the one detail
-       printed ON the label, so it must come AFTER. Verified against the product
-       photo at magnification -- see ADR 0031. -->
-  <!-- Photograph, on its own route like the S3A module (ADR 0035). The screw
-       that overlaps the panel's lower right in the product shot is painted out
-       of the crop, since the page draws no screws. -->
-  <div id="devlabel"><img src="/advlabel.webp" alt="CARDPUTER ADV label"
-       width="180" height="155" decoding="async"></div>
-  <div id="devgrille"><i class="a"></i><i class="b"></i></div>
-    <div id="devm5">M5</div>
-  <!-- Served from its own firmware route, not a base64 data: URI -- see
-       ADR 0033. The alt text names the part rather than describing the
-       picture, because that is what a reader actually needs from it. -->
-  <div id="devsticker"><img src="stamp.webp" alt="M5Stack Stamp-S3A module label with GPIO pinout"
-       width="263" height="188" decoding="async"></div>
-  <div id="devscreen"><canvas id="c" width="240" height="135"></canvas></div>
+  <div id="devbezel">
+    <div id="devcam" title="Camera"></div>
+    <div id="devscreen"><canvas id="c" width="1280" height="720"></canvas></div>
+  </div>
   <button id="zoombtn" title="Pop the display out of the case, and back">zoom</button>
   <div id="devkb"><div id="kb"></div></div>
+</div>
+<!-- Tab5 keyboard accessory mockup -- visual only, not wired to input yet.
+     See #tab5kb's CSS comment: separate physical dock, own I2C bus, its own
+     future milestone. Rows match Keyboard_for_Tab5_7_*.webp key by key,
+     reusing the Cardputer ADV's own two-part .key/.lgd/.dome markup shape
+     (see the JS around "el.className='key'" for the structure this mirrors). -->
+<div id="tab5kb" aria-hidden="true">
+  <div class="krow">
+    <div class="key l3 cap-yellow"><div class="lgd"><span class="pri">esc</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">1</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">2</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">3</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">4</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">5</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">6</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">7</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">8</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">9</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">0</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">-</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">+</span></div><div class="dome"></div></div>
+    <div class="key l3 cap-pink"><div class="lgd"><span class="pri">del</span></div><div class="dome"></div></div>
+  </div>
+  <!-- Symbol row: a genuinely separate physical row on this keyboard, not a
+       shift-corner on the number row above (confirmed against the photo). -->
+  <div class="krow">
+    <div class="key l2"><div class="lgd"><span class="pri">`~</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">!?</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">@</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">#</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">$</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">%</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">^</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">&amp;</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">*/</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">(&lt;</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">)&gt;</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">[{</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">]}</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">\|</span></div><div class="dome"></div></div>
+  </div>
+  <div class="krow">
+    <div class="key l3 cap-blue"><div class="lgd"><span class="pri">tab</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">Q</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">W</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">E</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">R</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">T</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">Y</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">U</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">I</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">O</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">P</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">;</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">'</span></div><div class="dome"></div></div>
+    <div class="key cap-dark"><div class="lgd"><span class="pri">⌫</span></div><div class="dome"></div></div>
+  </div>
+  <div class="krow">
+    <div class="key l3 cap-blue"><div class="lgd"><span class="pri">sym</span></div><div class="dome"></div></div>
+    <div class="key l2 cap-orange"><div class="lgd"><span class="pri">Aa</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">A</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">S</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">D</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">F</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">G</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">H</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">J</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">K</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">L</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">▲</span></div><div class="dome"></div></div>
+    <div class="key l2"><div class="lgd"><span class="pri">_=</span></div><div class="dome"></div></div>
+    <div class="key cap-dark"><div class="lgd"><span class="pri">⏎</span></div><div class="dome"></div></div>
+  </div>
+  <div class="krow">
+    <div class="key l3 cap-blue"><div class="lgd"><span class="pri">ctrl</span></div><div class="dome"></div></div>
+    <div class="key l3 cap-grey"><div class="lgd"><span class="pri">alt</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">Z</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">X</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">C</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">V</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">B</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">N</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">M</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">·</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">◀</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">▼</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><span class="pri">▶</span></div><div class="dome"></div></div>
+    <div class="key"><div class="lgd"><div class="spc"></div></div><div class="dome"></div></div>
+  </div>
+</div>
 </div>
 <!-- The visible bar holds only what you cannot afford to click for: link
      state, zoom, the frame budget (it changes what you are watching), and the
@@ -625,9 +728,12 @@ let sw=false,iv=false;
 $('swap').onclick=e=>{sw=!sw;e.target.classList.toggle('on',sw);send({swaprb:sw});};
 $('inv').onclick =e=>{iv=!iv;e.target.classList.toggle('on',iv);send({invert:iv});};
 $('shot').onclick=()=>{
-  const o=document.createElement('canvas');o.width=W*4;o.height=H*4;
+  // x4 was right for the Cardputer ADV's 240x135 source (960x540 PNG). At
+  // Tab5's 1280x720 that would be a 5120x2880 canvas for a "Save PNG" click
+  // -- x1 (native resolution) is already sharp enough at this size.
+  const o=document.createElement('canvas');o.width=W;o.height=H;
   const g=o.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(cv,0,0,o.width,o.height);
-  const a=document.createElement('a');a.download='cardputer-adv.png';a.href=o.toDataURL();a.click();
+  const a=document.createElement('a');a.download='tab5.png';a.href=o.toDataURL();a.click();
 };
 
 /* ---------------- ADV keyboard: layout + input injection ----------------
