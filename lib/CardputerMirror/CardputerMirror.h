@@ -1,12 +1,13 @@
 /*
- * CardputerMirror — browser display mirror for M5Stack Cardputer ADV
- * ADR 0002: non-invasive GRAM readback.
+ * CardputerMirror — browser display mirror, ported to M5Stack Tab5.
+ * ADR 0002 (Cardputer ADV origin): non-invasive GRAM readback.
+ * ADR 0048/0049 (this repo): Tab5 port -- verified hardware facts below.
  *
- * Verified hardware facts (M5GFX/M5Cardputer sources, not datasheets):
- *   board_M5CardputerADV = 24; Panel_ST7789 135x240, rotation 1 -> 240x135
- *   SPI3_HOST write 40MHz / read 16MHz; MISO NOT wired, spi_3wire=true (SIO)
- *   cfg.readable = true; _read_depth = rgb888_3Byte (3 B/px on the wire)
- *   Full frame = 97,200 B = 48.6 ms @16MHz -> ~20.6 fps hard ceiling
+ * Verified hardware facts (M5GFX source, not datasheets):
+ *   board_M5Tab5 = 22; Panel_DSI : Panel_FrameBufferBase, native panel
+ *   720x1280 portrait, rotation 1 -> 1280x720 landscape logical.
+ *   readRect()/copyRect() read a RAM line-buffer directly -- no SPI bus,
+ *   none of the Cardputer ADV's 3-wire-SIO readback risk (ADR 0048).
  *
  * Integration (two lines):
  *     CardputerMirror.begin();    // setup()
@@ -22,15 +23,18 @@
 
 namespace cmirror {
 
-// ---- Geometry. Divides exactly: 240/4 = 60, 135/3 = 45. ----
-static constexpr int kScreenW  = 240;
-static constexpr int kScreenH  = 135;
-static constexpr int kTileCols = 4;
-static constexpr int kTileRows = 3;
-static constexpr int kTileW    = kScreenW / kTileCols;  // 60
-static constexpr int kTileH    = kScreenH / kTileRows;  // 45
-static constexpr int kNumTiles = kTileCols * kTileRows; // 12
-static constexpr size_t kTilePx = (size_t)kTileW * kTileH;          // 2700
+// ---- Geometry. Tab5: 1280/16 = 80, 720/9 = 80 (square tiles, both exact).
+// This repo targets Tab5 only (see ADR 0048/0049) -- unlike upstream
+// cardputer-adv-mirror/launcher-adv-mirror, these constants are not shared
+// across boards here, so there is no compile-time board switch to maintain.
+static constexpr int kScreenW  = 1280;
+static constexpr int kScreenH  = 720;
+static constexpr int kTileCols = 16;
+static constexpr int kTileRows = 9;
+static constexpr int kTileW    = kScreenW / kTileCols;  // 80
+static constexpr int kTileH    = kScreenH / kTileRows;  // 80
+static constexpr int kNumTiles = kTileCols * kTileRows; // 144
+static constexpr size_t kTilePx = (size_t)kTileW * kTileH;          // 6400
 
 /*
  * Frame acquisition interface.

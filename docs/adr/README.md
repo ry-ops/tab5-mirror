@@ -61,6 +61,7 @@ directory but aren't part of that comparison.
 | [0047](0047-1262-hat-mockup.md) | 1262 HAT mockup drawn in CSS (GNSS+LoRa label centered on the device), with the top-edge buttons realigned to the ADV/S3A stickers and cut to 1/3 height | Accepted — implemented, not yet flashed |
 | [0048](0048-fork-for-tab5.md) | Fork for M5Stack Tab5 — verified ESP32-P4/DSI/keyboard-accessory facts and what actually needs to change vs. a rename | Proposed |
 | [0049](0049-screenshot-before-mirror.md) | Screenshot before mirror — pioarduino platform line resolved, standalone single-frame BMP capture as the smallest first proof on real hardware | **Accepted — implemented, verified on real hardware** |
+| [0050](0050-continuous-mirror.md) | Continuous mirror — 1280x720 tile geometry, library reused unchanged, verified live on real hardware (physical display + browser in sync) | **Accepted — implemented, verified on real hardware** |
 
 ## Hardware facts these ADRs rest on
 
