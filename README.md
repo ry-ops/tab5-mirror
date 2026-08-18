@@ -1,250 +1,152 @@
-# Cardputer ADV — Display Mirror
+# Tab5 Mirror
 
 ![Version](https://img.shields.io/badge/Version-0.1.0-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Platform](https://img.shields.io/badge/Platform-ESP32--S3-orange)
+![Platform](https://img.shields.io/badge/Platform-ESP32--P4-orange)
 ![Cost](https://img.shields.io/badge/Cost-Free-brightgreen)
 
-**View and control** an **M5Stack Cardputer ADV** from a web browser, over WiFi.
-Implements **ADR 0002** (non-invasive GRAM readback) with key injection on top.
+**View an M5Stack Tab5's display from a web browser, over WiFi** — no app
+hooks, no patched firmware. Pixels come straight off the panel's own
+framebuffer via `readRect()`.
 
-## Why you'd want this
+This is a fresh-history fork of
+[`cardputer-adv-mirror`](https://github.com/ry-ops/cardputer-adv-mirror),
+retargeted from the M5Stack Cardputer ADV (ESP32-S3, SPI ST7789) to the
+M5Stack Tab5 (ESP32-P4, DSI panel). See [ADR 0048](docs/adr/0048-fork-for-tab5.md)
+for why a fork rather than another board branch of the original project.
 
-- **The real screen, not a simulation.** Pixels come straight off the ST7789's
-  own GRAM over 3-wire SPI — no app hooks, no patched firmware. A boot
-  self-test reports exactly how reliable that readback is on your unit before
-  you trust a single frame.
-- **Full remote control, not just viewing.** Click the on-screen keyboard, or
-  hit **Capture my keyboard** and use your real one — every key (arrows
-  included) lands on the exact matrix coordinate a physical press would use,
-  so the firmware can't tell the difference.
-- **Mobile-first, and typeable on a phone.** The page is sized for touch by
-  default, not shrunk desktop chrome. On a phone, **zoom** pops the display
-  up above the case *and* focuses a hidden input that summons your own
-  on-screen keyboard in one tap — see [ADR 0045](docs/adr/0045-mobile-first-and-native-keyboard-capture.md).
-- **Cuts the cable entirely.** Flash once over USB, then the ADV mirrors *and*
-  takes input on WiFi alone — across the room, on battery. Two real bugs (WiFi
-  modem sleep, a keystroke counter that lied) used to make control look
-  USB-only; both are root-caused and fixed — see **Control over WiFi** below.
-- **Multi-client.** More than one browser can watch the same device at once
-  (see `2 clients` in the screenshot below).
-- **A wire protocol that earns its keep.** Dirty tiles only, RLE-coded: a
-  flat or banded tile costs 40 bytes against 5,400 raw — under 1%. The
-  worst case (noise) falls back to raw automatically instead of bloating.
-- **Tunable, live.** Trade CPU headroom for frame rate on the fly, from
-  Gentle (~14 fps) to Aggressive (~18 fps), against a hard ~20.6 fps ceiling
-  set by the SPI bus itself.
-- **Actually verified, not just claimed.** A fuzzed codec (600 trials, 0
-  failures) cross-checked against the shipped browser decoder, an automated
-  keyboard-coverage test suite, and 47 ADRs documenting every bug found along
-  the way — including the wrong turns.
-- **Free.** MIT licensed. No app, no account, no cloud — everything runs on
-  the device and in your browser.
+## Status
 
-```
-CardputerMirror.begin();    // setup()  — WiFi + HTTP + WebSocket
-CardputerMirror.update();   // loop()   — budgeted scan, pushes changed tiles
-```
+| Milestone | State |
+|---|---|
+| Verified pixel-correct `readRect()` on real Tab5 hardware | [ADR 0049](docs/adr/0049-screenshot-before-mirror.md) — done |
+| Continuous mirror: dirty-tile scan + RLE codec + WebSocket, reused unchanged from the Cardputer ADV library | [ADR 0050](docs/adr/0050-continuous-mirror.md) — done, live on hardware |
+| Browser dashboard mockup redrawn for Tab5 (CSS only, no photo) | [ADR 0051](docs/adr/0051-tab5-dashboard-mockup.md) — done |
+| Remote keyboard input via the Tab5's I2C keyboard accessory | not started — no `IInputSink` yet |
 
-Browse to the IP printed on the device screen.
+**What works today:** flash `tab5-mirror`, and the Tab5's live display streams
+to any browser on the same network — view only. The dashboard page renders a
+CSS-drawn mockup of the Tab5 docked with its keyboard accessory, but the
+keyboard half is decorative (`aria-hidden`, no click-to-type wiring) until the
+input milestone lands.
 
-> **USB is for flashing only.** There's no OTA path, so `pio run -t upload`
-> writes the firmware over the ESP32-S3's native USB CDC. After that the cable
-> is not needed for anything — the ADV mirrors *and takes input* on battery.
-> If control seems to need the cable, you're on a build from before
-> [ADR 0037](docs/adr/0037-control-over-wifi.md); see **Control over WiFi** below.
+## Why the mirror itself needed no new code
 
-![The browser page mirroring a connected Cardputer ADV, with the on-screen keyboard below and the zoom button on the case](docs/images/app-running.png)
-*The full browser page (ADR 0045's mobile-first pass): "ADV Mirror" title,
-the hamburger menu fixed top-left, mirrored System screen, on-screen
-keyboard, and connection status — live against a real device (`connected`,
-`3x`, `Normal (4.5ms)`).*
+The frame source sits behind `IFrameSource` ([ADR 0038](docs/adr/0038-adapter-driven-begin.md)).
+Tab5's `Panel_DSI` reads pixels from a RAM line-buffer, not over a fragile
+3-wire SPI bus like the Cardputer ADV's ST7789 — so `ReadbackFrameSource`,
+the dirty-tile scheduler, the RLE wire codec, and the browser UI all carried
+over verbatim. The only things that changed for this board are:
 
-The browser page renders the mirrored display alongside a full on-screen
-keyboard matching the ADV's physical 4x14 layout — click keys directly to send
-them to the device. Prefer typing on your own keyboard? Click **Capture my
-keyboard** to toggle passthrough: real keypresses (including arrow keys) are
-mapped through the same matrix coordinates a physical press would use, so the
-firmware can't tell the difference. On a phone, **zoom** does this for you in
-one tap — see **Mobile-first, and typeable on a phone** above.
+- **Geometry** — `CardputerMirror.h`'s `kScreenW/kScreenH/kTileCols/kTileRows`
+  went from the Cardputer's 240x135 to Tab5's 1280x720 (16x9 grid of 80x80
+  tiles, ~28x the pixel count).
+- **Bring-up** — Tab5 has no built-in radio; WiFi rides an ESP32-C6
+  co-processor over SDIO, which needs an explicit `WiFi.setPins(...)` call
+  (see `src/main_tab5_mirror.cpp`) before `WiFi.begin()` will work at all.
+- **Dashboard chrome** — the browser page's case mockup was redrawn in CSS
+  for Tab5's tablet-plus-keyboard shape ([ADR 0051](docs/adr/0051-tab5-dashboard-mockup.md)).
 
-![The hamburger menu open, showing Display controls, keyboard capture, and live stream stats](docs/images/menu.png)
-*Occasional controls and streaming diagnostics live behind the hamburger
-(ADR 0027) — Display (full refresh, save PNG, swap R/B, invert), Keyboard
-(capture toggle, 56-key test sweep), and live Stream stats (fps, tiles/s,
-KiB/s, keys sent/dropped, coverage).*
+Three real bugs surfaced getting the screenshot milestone onto real
+hardware — a board-autodetect hang, an empty-password WiFi join that needs
+`nullptr` not `""`, and a watchdog reset from an unyielded full-frame read at
+28x the old pixel count. All three, and how they were diagnosed, are in
+[ADR 0049](docs/adr/0049-screenshot-before-mirror.md)'s addenda.
 
-![The mirrored display popped out of the case and zoomed in, now rendered above the case mockup instead of beside it](docs/images/zoom.png)
-*Click **zoom** to pop the display out of the case mockup and scale it up
-(2x-5x) — as of ADR 0045 it renders ABOVE the case, not below, so it stays
-reachable once an on-screen keyboard has taken over the bottom of a phone
-screen. The case's own glass shows a "zoomed out" placeholder, with **inset**
-to bring the canvas back.*
-
-## Control over WiFi
-
-Keys and display frames share **one WebSocket** (`/ws`). USB is not in the
-control path at all — the only thing the firmware reads from serial is a debug
-banner. Two defects made control look like it required the cable, and both are
-fixed (ADR 0037):
-
-![Modem sleep delays inbound frames only](docs/images/modem-sleep.svg)
-
-**1. WiFi modem sleep was on because we never chose otherwise.** The Arduino
-core defaults to `WIFI_PS_MIN_MODEM` on the S3 and installs it at `STA_START`.
-It is asymmetric: *transmitting* wakes the radio, so tile frames always left
-immediately, while *receiving* parks between beacons — so every keypress waited
-for the next DTIM. A working display beside dead control is exactly what that
-produces. USB never caused it; it correlates with it, because a device on the
-bench is a metre from the AP and one on battery is across the room. Fixed with
-`WiFi.setSleep(false)`.
-
-**2. The page counted keys it never sent.** `send()` returns false when the
-socket is down, but every call site incremented the counter regardless — so
-presses dropped during the 1200 ms reconnect window were reported as delivered.
-`send()` now returns a boolean, all three call sites consume it, and a red
-**keys dropped** counter shows the difference.
-
-To tell a link problem from a menu problem, compare the two independent counts —
-the browser's **keys sent** against the device's own heartbeat:
-
-```
-[   42s] ip=10.88.135.147 clients=1 tiles=8134 keys=27/0 rssi=-58 heap=161284
-                                                     ^^^^ applied/dropped
-```
-
-Browser counts climbing while `keys=` stays flat means packets aren't arriving —
-read `rssi`. Below about **-75 dBm** the answer is an AP or an antenna, not code.
-
-## Why this order (#2 -> #1 -> #4)
-
-The frame source sits behind `IFrameSource`. Swapping ADR 0002's
-`ReadbackFrameSource` for ADR 0001's `TeeFrameSource` is a one-line change; the
-dirty-tile scheduler, wire protocol, RLE codec and browser UI are shared
-verbatim. **ADR 0004 = ADR 0001 + input injection**, so nothing built here is
-thrown away. Full reasoning in [`docs/adr/README.md`](docs/adr/README.md).
-
-Starting at #2 first answers the one question source-reading cannot: *does
-3-wire GRAM readback actually work on this panel?* The firmware self-tests it at
-boot and reports the score in the browser.
-
-## Hardware facts (read from M5 sources, not datasheets)
+## Hardware facts (read from M5GFX/M5Unified sources, not datasheets)
 
 | Property | Value |
 |---|---|
-| Board enum | `board_M5CardputerADV = 24` |
-| Panel | `Panel_ST7789` 135x240, rotation 1 -> **240x135** |
-| SPI | `SPI3_HOST`, write 40 MHz, **read 16 MHz** |
-| Pins | MOSI 35, SCLK 36, DC 34, CS 37, RST 33, BL 38 |
-| **MISO** | **not wired** (`-1`); `spi_3wire = true` -> half-duplex SIO |
-| Read depth | `rgb888_3Byte` — 3 B/px on the wire |
-| Keyboard | **TCA8418 I2C**, `matrix(7,8)`, INT **GPIO11** |
+| Board enum | `board_M5Tab5 = 22` |
+| Main SoC | ESP32-P4 (RISC-V, dual-core 360 MHz HP + LP core) — **no built-in WiFi/BT** |
+| Radio | ESP32-C6-MINI-1U co-processor over internal SDIO |
+| Panel | `Panel_DSI : Panel_FrameBufferBase`, native 720x1280, rotation 1 -> **1280x720 logical** |
+| Readback | `readRect()`/`copyRect()` read a RAM line-buffer directly — no SPI bus, no 3-wire SIO risk |
+| PSRAM | 32 MB Octal, **must run at 200 MHz** |
+| Flash | 16 MB |
+| System I2C | SDA GPIO31, SCL GPIO32 (display/touch/audio/IMU/RTC/power) |
+| SDIO pins (override required) | CLK 12, CMD 13, D0 11, D1 10, D2 9, D3 8, RST 15 |
+| Keyboard accessory | Separate STM32F030 module, 70-key, I2C addr `0x6D`, own bus (SDA GPIO0, SCL GPIO1, INT GPIO50) — not yet wired into this firmware |
 
-## Measured / computed budget
-
-- Shadow framebuffer RGB565: **64,800 B (63.3 KiB)**
-- Full-frame readback: 97,200 B -> **48.6 ms @ 16 MHz -> ~20.6 fps ceiling**
-- Tile 60x45 (divides 240x135 exactly): 8,100 B -> **4.05 ms**
-
-Codec efficiency, verified by cross-checking the C++ encoder against the shipped
-browser decoder (600 fuzz trials + 4 golden vectors, 0 failures):
-
-| Tile content | Wire bytes | vs raw 5,400 B |
-|---|---|---|
-| Flat fill | 40 | 0.7% |
-| Banded | 40 | 0.7% |
-| Text-like (sparse) | 856 | 15.9% |
-| Noise (worst case) | 5,407 | 100.1% (falls back to RAW) |
-
-## Frame rate vs. application impact
-
-`budgetUs` throttles how much SPI read time `update()` may consume per `loop()`.
-
-| Setting | Tiles/loop | SPI per loop() | Full scan | Realistic fps |
-|---|---|---|---|---|
-| Gentle (2000us) | 1 | 4.0 ms | 72.6 ms | 13.8 |
-| Normal (4500us) | 1 | 4.0 ms | 72.6 ms | 13.8 |
-| Fast (9000us) | 2 | 8.1 ms | 60.6 ms | 16.5 |
-| Aggressive (20000us) | 4 | 16.2 ms | 54.6 ms | 18.3 |
-
-A full 12-tile scan costs **48.6 ms of SPI time no matter how it is batched**, so
-**20.6 fps is an absolute ceiling**. Larger budgets reach it in fewer `loop()`
-iterations (less per-iteration overhead), they do not exceed it. Real fps is lower
-still: reads contend with the application's own 40 MHz writes. Figures assume ~2 ms
-of application work per `loop()`.
+Full sourcing and the Cardputer ADV's own hardware table are in
+[ADR 0048](docs/adr/0048-fork-for-tab5.md) and [`docs/adr/README.md`](docs/adr/README.md).
 
 ## Build
 
+No dedicated Tab5 board profile exists upstream in PlatformIO yet, so
+`platformio.ini` targets `esp32-p4-evboard` via the `pioarduino` platform
+fork with a forced board override (`-DM5GFX_BOARD=22`) — see
+[ADR 0049](docs/adr/0049-screenshot-before-mirror.md) for why.
+
 ```bash
-python3 tools/gen_web_assets.py    # web/index.html -> gzipped PROGMEM header
-pio run -t upload
+cp include/wifi_credentials.example.h include/wifi_credentials.h  # fill in WIFI_PROFILES; gitignored
+pio run -e tab5-mirror -t upload   # continuous mirror, the working milestone
 ```
 
-Copy `include/wifi_credentials.example.h` to `include/wifi_credentials.h` and
-fill in `WIFI_PROFILES` to join your network — that file is gitignored. With no
-network reachable the device falls back to a SoftAP, **`CardputerADV`**, and
-prints the address on its own screen either way.
+Other environments in `platformio.ini`:
+
+| Env | Purpose |
+|---|---|
+| `tab5` | Base config (platform, board, lib_deps); not built directly |
+| `tab5-serialtest` | Diagnostic: bare `Serial.begin()` + heartbeat, no M5Unified/WiFi |
+| `tab5-mirror` | Continuous display mirror — the current working firmware |
+
+Each environment's `build_src_filter` excludes the Cardputer ADV's own
+`main.cpp`/`menu.cpp`/`keyinject.cpp`/`wifi_manager*.cpp` — those are built
+around the Cardputer's TCA8418 matrix keyboard and SoftAP-capable WiFi
+manager, inherited from the fork but not yet ported to Tab5. They stay in the
+tree as reference for the eventual keyboard-input milestone.
+
+Browse to the IP printed on the device's serial log (115200 baud) or its own
+display once connected.
 
 ## Layout
 
 ```
-docs/adr/            ADR 0001-0047 — every decision, including the wrong ones
-lib/CardputerMirror/ Mirror, IFrameSource, ReadbackFrameSource, RLE codec
-web/index.html       Browser client (canvas + 4x14 ADV keyboard) — a template
-tools/               Asset generator, MCP server, test suite, codec fuzzer
-src/main.cpp         Example integration
-src/menu.cpp         On-device menu (Network / System / Mirror / Key Test)
-include/             wifi_credentials.h (gitignored) + its example
+docs/adr/                  ADR 0001-0047 inherited from cardputer-adv-mirror;
+                            0048-0051 are this fork's own Tab5 decisions
+lib/CardputerMirror/       Mirror, IFrameSource, ReadbackFrameSource, RLE codec
+                            — board-agnostic, reused unchanged from the fork
+web/index.html             Browser client — Tab5 dashboard mockup (ADR 0051)
+src/main_tab5_screenshot.cpp  One-shot BMP-over-HTTP proof (ADR 0049)
+src/main_tab5_mirror.cpp   Continuous mirror entry point — current firmware
+src/main_serial_test.cpp   Diagnostic: isolates Serial/HWCDC from M5Unified
+src/main.cpp, menu.cpp,    Cardputer ADV-specific; excluded from every Tab5
+  keyinject.cpp,            build_src_filter; kept for reference until the
+  wifi_manager*.cpp         Tab5 keyboard-accessory milestone
+include/                   wifi_credentials.h (gitignored) + its example
+tools/                     Asset generator, MCP dev server, test suite, codec fuzzer
 ```
 
-Dropping the mirror into other firmware is `serverHandle()` plus the two marked
-lines in `src/main.cpp`; the library owns no policy of its own.
+## Known limits
 
-## Known limits (ADR 0002)
-
-- **~20 fps hard ceiling**, lower under load.
-- **Tearing** — a tile can be read mid-draw.
-- **Missed changes** — content drawn and reverted between two scans of the same
-  tile is never seen (CRC sampling).
-- **Input is injected, not electrical** — keys are posted into the firmware's own
-  queue at the matrix coordinates a physical press would use. Code that reads the
-  TCA8418 directly rather than through `M5Cardputer.Keyboard` won't see them.
-- **Colors** — if wrong, toggle `Swap R/B` / `Invert`; ST7789 revisions differ.
-- A self-test well under 100% means readback is unreliable on your unit; ADR 0001
-  is then the path forward.
-
-## Verify the codec locally
-
-```bash
-c++ -std=c++17 -O2 -o verify_codec tools/verify_codec.cpp && ./verify_codec
-```
+- **No remote input yet.** The Tab5's I2C keyboard accessory has no
+  `IInputSink` implementation — the dashboard's keyboard mockup is purely
+  decorative. Mirroring is view-only for now.
+- **`budgetUs` is an unmeasured guess.** `main_tab5_mirror.cpp` starts at
+  `8000us`; real per-tile `readRect()` cost at 6,400 px/tile (vs. the
+  Cardputer's 2,700) hasn't been isolated from WiFi/encode overhead yet.
+- **No dedicated PlatformIO board profile.** Builds target
+  `esp32-p4-evboard` with pin/board overrides, not a real `m5stack-tab5`
+  profile — see [ADR 0049](docs/adr/0049-screenshot-before-mirror.md).
+- **Tearing / missed changes** — inherited limits of tile-based CRC readback
+  from [ADR 0002](docs/adr/0002-gram-readback-mirror.md): a tile can be read
+  mid-draw, and a change reverted between two scans of the same tile is
+  never seen.
 
 ## Test suite
 
+Inherited from the original project and still applicable to the shared
+`lib/CardputerMirror` code (codec, keymap generation tooling):
+
 ```bash
+c++ -std=c++17 -O2 -o verify_codec tools/verify_codec.cpp && ./verify_codec
 for t in tools/test_*.mjs tools/test_*.cjs; do echo "--- $t"; node "$t"; done
 ```
 
-| test | what it proves |
-|---|---|
-| `test_keymap.mjs`       | every coordinate agrees with M5Cardputer's `_key_value_map[4][14]` |
-| `test_coverage.mjs`     | every enumerated key is reachable from some painted legend |
-| `test_dual_legend.mjs`  | dual-legend caps emit both characters from one coordinate |
-| `test_dom_keyboard.cjs` | the page **the device serves** builds the keyboard measured in ADR 0022 |
-
-`test_dom_keyboard.cjs` needs jsdom (`npm install --no-save jsdom`); without it
-the test prints SKIP and exits 0 rather than failing.
-
-It gunzips `lib/CardputerMirror/WebAssets.h` rather than reading
-`web/index.html`, because the latter is a **template** holding the literal
-`/*__KEYMAP__*/` placeholder — opened directly it renders a "keymap missing"
-notice and every count assertion reads 0. See ADR 0025.
-
-Regenerate assets after editing `web/index.html`:
-
-```bash
-python3 tools/gen_web_assets.py && ./tools/pio.sh run -e cardputer-adv
-```
+The keymap-specific tests (`test_keymap.mjs`, `test_coverage.mjs`,
+`test_dual_legend.mjs`) check the Cardputer ADV's key layout and don't apply
+to Tab5 until the keyboard-accessory milestone defines its own layout.
 
 ## License
 
