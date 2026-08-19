@@ -85,4 +85,19 @@ void Tab5Keyboard::poll()
     _writeReg(kRegIntSta, 0x00); // clear
 }
 
+const char* legendFor(uint8_t row, uint8_t col)
+{
+    // Same order as web/index.html's #tab5kb markup (ADR 0051), confirmed
+    // 1:1 against real hardware (ADR 0052 addendum).
+    static const char* const kLegend[5][14] = {
+        {"esc","1","2","3","4","5","6","7","8","9","0","-","+","del"},
+        {"`~","!?","@","#","$","%","^","&","*/","(<",")>","[{","]}","\\|"},
+        {"tab","Q","W","E","R","T","Y","U","I","O","P",";","'","backspace"},
+        {"sym","Aa","A","S","D","F","G","H","J","K","L","up","_=","enter"},
+        {"ctrl","alt","Z","X","C","V","B","N","M","middle-dot","left","down","right","space"},
+    };
+    if (row >= 5 || col >= 14) return "?";
+    return kLegend[row][col];
+}
+
 }  // namespace tab5kb

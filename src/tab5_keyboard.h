@@ -64,4 +64,11 @@ private:
     bool _ok = false;
 };
 
+// Human-readable legend for a (row,col), using the confirmed keymap above.
+// Returns "?" for a coordinate outside the real 5x14 grid. Shared by the
+// keymap wizard (main_tab5_keyboard.cpp) and the mirror adapter's on-screen
+// feedback (main_tab5_mirror.cpp / tab5_adapter.cpp) so there's one table,
+// not two copies that could drift apart.
+const char* legendFor(uint8_t row, uint8_t col);
+
 }  // namespace tab5kb

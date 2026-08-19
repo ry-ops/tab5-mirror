@@ -355,13 +355,13 @@ button.on{border-color:var(--ok);color:var(--ok)}
  * White body (see block comment above -- the docking photo, not the studio
  * shot, is what corrected this: the studio photo's grey background made the
  * accessory's own plastic read darker than it is against a white page).
- * Purely a visual mockup for now: no click-to-type wiring, unlike #kb (the
- * Cardputer ADV's still-present but hidden functional keyboard -- see the
- * #topedge/#g0state/#devkb display:none rule above). Real Tab5 keyboard
- * input is its own milestone, once IInputSink exists for the I2C accessory
- * protocol -- the real key VALUES this sends (Normal/HID/Character mode)
- * aren't settled yet, so this grid has no data-row/data-col the way #kb's
- * JS-generated keys do. */
+ * Click-to-type wired (ADR 0053): row/col are read off DOM position, not
+ * hardcoded, because ADR 0052 confirmed real hardware's row/col matches
+ * this exact markup order 1:1 -- the grid IS the keymap. See the send()
+ * wiring block in the page's JS. shift/fn (Aa/sym latches) aren't wired to
+ * anything real yet, same as #kb (the Cardputer ADV's still-present but
+ * hidden keyboard -- see the #topedge/#g0state/#devkb display:none rule
+ * above) never got its own latch state either. */
 /* Corners mirror #dev's, flipped: flat where it docks to the tablet above
  * (top corners, matching #dev's flat bottom corners), rounded at the
  * bottom (the keyboard's own outer edge). */
@@ -457,12 +457,12 @@ button.on{border-color:var(--ok);color:var(--ok)}
   <button id="zoombtn" title="Pop the display out of the case, and back">zoom</button>
   <div id="devkb"><div id="kb"></div></div>
 </div>
-<!-- Tab5 keyboard accessory mockup -- visual only, not wired to input yet.
-     See #tab5kb's CSS comment: separate physical dock, own I2C bus, its own
-     future milestone. Rows match Keyboard_for_Tab5_7_*.webp key by key,
-     reusing the Cardputer ADV's own two-part .key/.lgd/.dome markup shape
+<!-- Tab5 keyboard accessory mockup -- click-to-type wired, see #tab5kb's
+     CSS comment (ADR 0053) and the send() wiring block in the page's JS.
+     Rows match Keyboard_for_Tab5_7_*.webp key by key, reusing the
+     Cardputer ADV's own two-part .key/.lgd/.dome markup shape
      (see the JS around "el.className='key'" for the structure this mirrors). -->
-<div id="tab5kb" aria-hidden="true">
+<div id="tab5kb">
   <div class="krow">
     <div class="key l3 cap-yellow"><div class="lgd"><span class="pri">esc</span></div><div class="dome"></div></div>
     <div class="key"><div class="lgd"><span class="pri">1</span></div><div class="dome"></div></div>
@@ -722,6 +722,34 @@ connect();
 // a press made while the socket is down is a dropped press, not a sent one.
 const send=o=>{ if(!ws||ws.readyState!==1) return false;
                 ws.send(JSON.stringify(o)); return true; };
+
+// Tab5 dashboard keyboard (ADR 0053): click-to-send. Row/col are read off
+// DOM POSITION -- which .krow a .key sits in, and its index within that
+// row -- not hardcoded per key. This works because ADR 0052 confirmed the
+// real hardware's row/col numbering matches this exact markup order
+// (row=index/14, col=index%14): the grid IS the keymap, so there's no
+// separate lookup table to keep in sync with the HTML.
+// Wire protocol matches RemoteKey (IInputSink.h): {t:'key',r,c,shift,fn}.
+// shift/fn are always false here -- Aa/sym/fn-layer handling is future
+// work, same as the physical accessory's own latch keys aren't wired to
+// anything yet either.
+(() => {
+  const kb = $('tab5kb');
+  if (!kb) return;
+  const rows = kb.querySelectorAll(':scope > .krow');
+  rows.forEach((row, r) => {
+    const keys = row.querySelectorAll(':scope > .key');
+    keys.forEach((key, c) => {
+      key.style.cursor = 'pointer';
+      key.onpointerdown = e => {
+        e.preventDefault();
+        key.classList.add('dn');
+        send({ t: 'key', r, c, shift: false, fn: false });
+      };
+      key.onpointerup = key.onpointerleave = () => key.classList.remove('dn');
+    });
+  });
+})();
 $('full').onclick=()=>send({full:true});
 $('budget').onchange=e=>send({budget:+e.target.value});
 let sw=false,iv=false;

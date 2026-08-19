@@ -16,7 +16,9 @@
  */
 #include <M5Unified.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include "CardputerMirror.h"
+#include "tab5_adapter.h"
 
 #if __has_include("wifi_credentials.h")
   #include "wifi_credentials.h"
@@ -81,6 +83,27 @@ void drawTestPattern(int w, int h)
     M5.Display.display();
 }
 
+tab5adapter::Tab5Adapter gAdapter;
+
+// Fixed corner readout for the round-trip proof: since Tab5's own screen
+// is what's being mirrored, drawing feedback HERE means it reaches every
+// connected browser through the existing dirty-tile pipeline for free --
+// no separate WS message type needed to prove a remote click landed.
+constexpr int kFeedbackX = 4, kFeedbackY = 4, kFeedbackW = 420, kFeedbackH = 90;
+
+void drawKeyFeedback(const char* source, uint8_t row, uint8_t col, bool pressed)
+{
+    M5.Display.startWrite();
+    M5.Display.fillRect(kFeedbackX, kFeedbackY, kFeedbackW, kFeedbackH, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setTextSize(2);
+    M5.Display.setCursor(kFeedbackX + 4, kFeedbackY + 4);
+    M5.Display.printf("%s: %s\nrow=%u col=%u %s", source, tab5kb::legendFor(row, col),
+                      row, col, pressed ? "PRESSED" : "released");
+    M5.Display.endWrite();
+    M5.Display.display();
+}
+
 } // namespace
 
 void setup()
@@ -126,6 +149,12 @@ void setup()
 
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("  WiFi CONNECTED, ip=%s\n", WiFi.localIP().toString().c_str());
+        if (MDNS.begin("tab5")) {
+            MDNS.addService("http", "tcp", 80);
+            Serial.println("  mDNS up: http://tab5.local/");
+        } else {
+            Serial.println("  mDNS FAILED to start (http://tab5.local/ won't resolve; IP still works)");
+        }
     } else {
         Serial.println("  WiFi FAILED to connect. Mirror server will still start (SoftAP-less; see manageWifi=false).");
     }
@@ -138,9 +167,15 @@ void setup()
     // unmeasured on this hardware yet. Deliberately conservative starting
     // point; watch the heartbeat's tiles/sec and raise if there's headroom.
     mc.budgetUs = 8000;
-    CardputerMirror.begin(mc);
+    // Adapter-driven begin() (ADR 0038), not the plain begin(mc) this
+    // sketch used before -- that path has no hook for a custom IInputSink,
+    // and remote key injection needs one. gAdapter also owns the frame
+    // source now (still ReadbackFrameSource, just adapter-held instead of
+    // the library's internal static instance).
+    CardputerMirror.begin(mc, gAdapter);
+    Serial.printf("  keyboard begin version=0x%02X\n", gAdapter.sink().keyboardVersion());
 
-    Serial.printf("  Mirror server up at http://%s/\n", CardputerMirror.ipAddress().c_str());
+    Serial.printf("  Mirror server up at http://%s/  (or http://tab5.local/)\n", CardputerMirror.ipAddress().c_str());
     Serial.println("==================================================================");
 }
 
@@ -197,6 +232,20 @@ void loop()
     M5.update();
     heartbeat();
     animate();
+
+    gAdapter.sink().poll(); // drives the I2C read -- see tab5_keyboard.cpp
+
+    tab5kb::KeyEvent phys;
+    if (gAdapter.sink().takePhysical(&phys)) {
+        drawKeyFeedback("physical", phys.row, phys.col, phys.pressed);
+    }
+    cmirror::RemoteKey remote;
+    if (gAdapter.sink().takeRemote(&remote)) {
+        // RemoteKey has no pressed/released distinction (a browser click
+        // is momentary) -- always shown as PRESSED.
+        drawKeyFeedback("remote", remote.row, remote.col, true);
+    }
+
     CardputerMirror.update();
     delay(2);
 }

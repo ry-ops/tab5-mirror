@@ -64,6 +64,7 @@ directory but aren't part of that comparison.
 | [0050](0050-continuous-mirror.md) | Continuous mirror — 1280x720 tile geometry, library reused unchanged, verified live on real hardware (physical display + browser in sync) | **Accepted — implemented, verified on real hardware** |
 | [0051](0051-tab5-dashboard-mockup.md) | Tab5 dashboard mockup — CSS-drawn (no photo), three-layer bezel, docked keyboard reusing the Cardputer ADV's own key CSS, every number measured from real hardware photos | **Accepted — implemented, verified live in browser** |
 | [0052](0052-keyboard-proof-of-life.md) | Keyboard proof of life — hand-written I2C driver, two real hardware bugs found and fixed (I2C peripheral collision, EVENT_NUM not clearing), full 70-key map confirmed via guided wizard | **Accepted — implemented, verified on real hardware** |
+| [0053](0053-remote-key-injection-and-clickable-dashboard.md) | Remote key injection + clickable dashboard keyboard via `IInputSink`, `tab5.local` mDNS, a real 4-row→5-row bounds bug found and fixed, both directions verified on real hardware | **Accepted — implemented, verified on real hardware** |
 
 ## Hardware facts these ADRs rest on
 

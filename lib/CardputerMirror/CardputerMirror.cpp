@@ -174,7 +174,11 @@ bool Mirror::_startServer()
                     const int c = msg.substring(ci + 4).toInt();
                     const bool sh = msg.indexOf("\"shift\":true") >= 0;
                     const bool fn = msg.indexOf("\"fn\":true")    >= 0;
-                    if (r >= 0 && r < 4 && c >= 0 && c < 14) {
+                    // Tab5's matrix is 5 rows (ADR 0052), not the Cardputer
+                    // ADV's 4 -- this repo is Tab5-only (ADR 0048), so the
+                    // bound is fixed at the real hardware's size, not the
+                    // inherited value.
+                    if (r >= 0 && r < 5 && c >= 0 && c < 14) {
                         if (_sink) _sink->inject(RemoteKey{(uint8_t)r, (uint8_t)c, sh, fn});
                         else       _onKey((uint8_t)r, (uint8_t)c, sh, fn);
                     }
