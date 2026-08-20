@@ -79,6 +79,24 @@ void drawTestPattern(int w, int h)
         }
     }
     for (int i = 0; i < h && i < w; ++i) M5.Display.drawPixel(i, i, TFT_BLACK);
+
+    // Unambiguous corner labels -- literal words, not colors or diagonals,
+    // so a physical-vs-web comparison doesn't depend on interpreting a
+    // photo's angle or reading a repeating checkerboard sequence correctly.
+    M5.Display.setTextSize(3);
+    struct { const char* text; int x, y; uint16_t bg; } labels[] = {
+        { "TOP-LEFT",     4,          4,          TFT_BLACK },
+        { "TOP-RIGHT",    w - 200,    4,          TFT_BLACK },
+        { "BOTTOM-LEFT",  4,          h - 30,     TFT_BLACK },
+        { "BOTTOM-RIGHT", w - 230,   h - 30,     TFT_BLACK },
+    };
+    for (auto& l : labels) {
+        int tw = strlen(l.text) * 18, th = 24;
+        M5.Display.fillRect(l.x - 2, l.y - 2, tw + 4, th + 4, l.bg);
+        M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.setCursor(l.x, l.y);
+        M5.Display.print(l.text);
+    }
     M5.Display.endWrite();
     M5.Display.display();
 }
@@ -118,7 +136,17 @@ void setup()
     Serial.println();
     Serial.println("===== M5Stack Tab5 continuous mirror (mirroring milestone) =====");
 
-    M5.Display.setRotation(1);
+    // rotation=3, not 1: confirmed on real hardware (corner-label test,
+    // 2026-08-19) that the panel's physical scanout is 180 degrees off from
+    // what M5GFX's board_M5Tab5 profile assumes -- content drawn at buffer
+    // (0,0) (logically "top-left" at rotation=1) physically rendered in the
+    // BOTTOM-RIGHT corner. rotation=1 and rotation=3 are the two landscape
+    // options 180 degrees apart; 3 is the one that lands physically correct.
+    // The web mirror stayed correct at rotation=1 the whole time -- it
+    // reads back through the same _internal_rotation-based buffer indexing
+    // used to draw, so it was always self-consistent with what software
+    // intended, never with the physical panel's real mounting.
+    M5.Display.setRotation(3);
     M5.Display.setTextSize(2);
     M5.Display.fillScreen(TFT_BLACK);
     Serial.printf("  Display reports: %dx%d\n", M5.Display.width(), M5.Display.height());
