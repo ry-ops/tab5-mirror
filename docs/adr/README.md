@@ -67,6 +67,7 @@ directory but aren't part of that comparison.
 | [0053](0053-remote-key-injection-and-clickable-dashboard.md) | Remote key injection + clickable dashboard keyboard via `IInputSink`, `tab5.local` mDNS, a real 4-row→5-row bounds bug found and fixed, both directions verified on real hardware | **Accepted — implemented, verified on real hardware** |
 | [0054](0054-physical-panel-180-rotation-fix.md) | Physical panel was genuinely 180° rotated from the mirror (`setRotation(1)`→`3`) — every prior milestone's self-test could not have caught this; fixed by printing literal corner labels instead of interpreting colors/photos | **Accepted — implemented, verified on real hardware** |
 | [0055](0055-microsd-proof-of-life.md) | microSD proof of life — `SD.begin()` needs an explicit 25MHz SPI clock on real Tab5 hardware, found while debugging a sibling project's (tab5-launcher) SD card issue | **Accepted — implemented, verified on real hardware** |
+| [0056](0056-ble-scanner-proof-of-life.md) | BLE scanner proof of life — standard `BLEDevice`/`BLEScan` API works unmodified over Tab5's ESP-Hosted SDIO link, no WiFi connection required | **Accepted — implemented, verified on real hardware** |
 
 ## Hardware facts these ADRs rest on
 
