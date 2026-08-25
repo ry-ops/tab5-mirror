@@ -128,6 +128,21 @@ public:
     String ipAddress() const;
     int    clientCount() const;
     int    selfTestScore() const { return _selfTest; }
+
+#ifdef CMIRROR_PROFILE
+    // Opt-in per-stage timing (ADR 0058). Compiled out entirely when
+    // CMIRROR_PROFILE isn't defined, so the shared library's normal
+    // (non-profiling) builds pay nothing -- not even the accumulator
+    // fields. Reset with profileReset() between comparison windows (e.g.
+    // "SD idle" vs "SD active" phases of the same boot).
+    struct ProfileStats {
+        uint32_t captureUsTotal = 0, captureUsMax = 0, captureSamples = 0;
+        uint32_t encodeUsTotal  = 0, encodeUsMax  = 0, encodeSamples  = 0;
+        uint32_t publishUsTotal = 0, publishUsMax = 0, publishSamples = 0;
+    };
+    ProfileStats profileStats() const { return _prof; }
+    void         profileReset()       { _prof = ProfileStats{}; }
+#endif
     // TEMPORARY diagnostic: last step begin(cfg, adapter) reached, updated
     // synchronously at each stage. One-shot boot-time prints (log_e/log_i,
     // even Serial.printf) are a losing race against hosts whose USB CDC
@@ -184,6 +199,9 @@ private:
     IInputSink* _sink    = nullptr;
     PortMutex*  _busLock = nullptr; // taken/given around IFrameSource calls, if non-null
     const char* _debugBeginStep = "not started"; // TEMPORARY, see debugBeginStep()
+#ifdef CMIRROR_PROFILE
+    ProfileStats _prof;
+#endif
 
     bool _allocBuffers();            // shadow + tile scratch, shared by both begin() paths
     bool _startServer();             // WiFi/HTTP/WS bring-up, shared by both begin() paths

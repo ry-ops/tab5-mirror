@@ -243,7 +243,16 @@ bool Mirror::scanOneTile()
     // don't get that for free -- taken/given only when non-null, so it costs
     // nothing when it isn't needed.
     if (_busLock) xSemaphoreTake((SemaphoreHandle_t)_busLock, portMAX_DELAY);
+#ifdef CMIRROR_PROFILE
+    const uint32_t capT0 = micros();
+#endif
     const bool ok = _src->fetchTile(idx, _tile);
+#ifdef CMIRROR_PROFILE
+    const uint32_t capUs = micros() - capT0;
+    _prof.captureUsTotal += capUs;
+    if (capUs > _prof.captureUsMax) _prof.captureUsMax = capUs;
+    ++_prof.captureSamples;
+#endif
     if (_busLock) xSemaphoreGive((SemaphoreHandle_t)_busLock);
     if (!ok) return true;
 
@@ -275,8 +284,20 @@ void Mirror::publishTile(int idx)
     out[1] = (uint8_t)idx;
     out[2] = 0;
     out[3] = 0;
+#ifdef CMIRROR_PROFILE
+    const uint32_t encT0 = micros();
+#endif
     size_t n = encodeTile(_tile, kTilePx, out + 4, sizeof(out) - 4);
+#ifdef CMIRROR_PROFILE
+    const uint32_t encUs = micros() - encT0;
+    _prof.encodeUsTotal += encUs;
+    if (encUs > _prof.encodeUsMax) _prof.encodeUsMax = encUs;
+    ++_prof.encodeSamples;
+#endif
     if (n == 0) return;
+#ifdef CMIRROR_PROFILE
+    const uint32_t pubT0 = micros();
+#endif
     if (s_ws->availableForWriteAll()) {
         // binaryAll() copies `out` into a heap-allocated std::vector
         // (ESPAsyncWebServer's makeSharedBuffer()) before it can queue the
@@ -289,10 +310,23 @@ void Mirror::publishTile(int idx)
         // than risk that. ADV units are frequently PSRAM-less, so internal
         // SRAM headroom here can be genuinely tight, not just theoretical.
         if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) > (n + 4) + 512) {
+            // NOTE (ADR 0058): this only times the enqueue -- the copy into
+            // ESPAsyncWebServer's makeSharedBuffer() plus handing it to
+            // AsyncTCP. The actual over-the-air send happens later on
+            // AsyncTCP's own task, off this call stack entirely. So
+            // "publish" here is already non-blocking by construction; it is
+            // NOT the WiFi transmission time itself. See the ADR for why
+            // that asymmetry with SD I/O (which IS synchronous) matters.
             s_ws->binaryAll((const char*)out, n + 4);
             ++_framesSent;
         }
     }
+#ifdef CMIRROR_PROFILE
+    const uint32_t pubUs = micros() - pubT0;
+    _prof.publishUsTotal += pubUs;
+    if (pubUs > _prof.publishUsMax) _prof.publishUsMax = pubUs;
+    ++_prof.publishSamples;
+#endif
 }
 
 String Mirror::ipAddress() const

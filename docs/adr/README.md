@@ -69,6 +69,7 @@ directory but aren't part of that comparison.
 | [0055](0055-microsd-proof-of-life.md) | microSD proof of life — `SD.begin()` needs an explicit 25MHz SPI clock on real Tab5 hardware, found while debugging a sibling project's (tab5-launcher) SD card issue | **Accepted — implemented, verified on real hardware** |
 | [0056](0056-ble-scanner-proof-of-life.md) | BLE scanner proof of life — standard `BLEDevice`/`BLEScan` API works unmodified over Tab5's ESP-Hosted SDIO link, no WiFi connection required | **Accepted — implemented, verified on real hardware** |
 | [0057](0057-sdmmc-sdio-dead-end-reference.md) | SD_MMC (SDIO) dead end, kept as reference — exhaustive LDO/host-slot/pin/silicon-variant elimination while chasing a microSD regression that turned out to be a leftover uncommitted experiment in a sibling project (tab5-launcher), not a real gap here | **Rejected as a fix — sketches kept for reference only** |
+| [0058](0058-sd-mirror-concurrent-profiling.md) | SD + mirror concurrent-load profiling harness — SD (0055) and the mirror (0050) had never run in the same firmware image before this; adds opt-in per-stage timing (capture/encode/publish) and a combined bench sketch (inline vs. dedicated-task SD I/O) to actually measure the reported concurrent-performance symptom instead of assuming a cause | Proposed — written, not yet built or flashed (no toolchain/hardware in-session) |
 
 ## Hardware facts these ADRs rest on
 
