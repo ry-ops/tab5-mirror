@@ -15,6 +15,32 @@ forward it to **DriveIQ** (`ry-ops/DriveIQ` — a separate repo/org, out of
 scope here; this ADR covers only the StickS3-to-adapter link). Where a
 Tab5 fits (e.g. via its Grove port) is undecided and also out of scope.
 
+### Non-goals (asked and settled early, not a gap to fill later)
+
+Standard OBD2 (SAE J1979/Mode 01-0A, what any ELM327-class adapter speaks)
+is a **read-mostly diagnostic/emissions interface**: live PIDs, freeze
+frame, DTC read/clear, VIN. It is not a control interface. In particular,
+this project will never be able to adjust ECU calibration — variable valve
+timing, fuel/spark maps, actuator control — through this stack, for two
+independent reasons, either of which alone would already rule it out:
+
+1. The protocol doesn't expose it. Mode 08 ("request control of onboard
+   system") exists but manufacturers only ever wire it to a couple of
+   standardized emissions self-tests (e.g. cycle the EVAP purge solenoid);
+   there is no PID for cam-timing targets or any other tuning parameter.
+   VVT is a closed-loop algorithm running inside the ECU's own firmware,
+   not something exposed at the diagnostic port at all.
+2. Even where a write path exists, reaching it requires manufacturer-
+   specific **UDS (ISO 14229)** services behind a seed-key security-access
+   handshake — a different tool category entirely (HP Tuners, EFI Live,
+   Cobb Accessport, dealer tools), which no ELM327-class chip implements.
+
+On a road vehicle this is also a regulatory boundary, not just a technical
+one: altering emissions-relevant calibration (VVT included) outside the
+factory map is EPA tampering regardless of what tool performs it. If
+ECU tuning is ever wanted, it is a separate project with its own tooling
+and its own legal review — not an extension of this telemetry pipeline.
+
 ### StickS3 hardware facts (verified against official M5Stack docs and the
 ### underlying ESP32-S3 datasheet, not blog posts)
 
