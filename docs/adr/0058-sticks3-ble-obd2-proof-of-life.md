@@ -1,7 +1,8 @@
 # ADR 0058 — M5StickS3 -> BLE OBD2 adapter proof of life
 
-**Status:** Proposed — not yet built or verified on real hardware (no
-StickS3 or OBD2 adapter in hand yet)
+**Status:** Proposed — compiles clean (`pio run -e sticks3-obd2`: SUCCESS,
+RAM 14.7%, Flash 33.9%), but not yet flashed or verified on real hardware
+(no StickS3 or OBD2 adapter in hand yet)
 **Deciders:** firmware owner
 **Related:** ADR 0056 (BLE scanner proof of life, Tab5) — same "smallest
 possible proof before building anything on top of it" pattern, different
@@ -121,6 +122,15 @@ Follows this repo's established per-board isolation pattern: standalone
 `main_*.cpp`, its own `platformio.ini` env, nothing shared with the
 Tab5/Cardputer mirror code beyond the repo shell.
 
+The response parser (`obd2::parseRpm`) lives in `src/obd2_parse.h`, pulled
+out of the sketch with no Arduino/BLE dependency — same split as
+`lib/CardputerMirror/Codec.h` + `tools/verify_codec.cpp`. `tools/
+verify_obd2_parse.cpp` exercises it on the host (13 cases: spaced/unspaced
+hex, an un-suppressed command echo, an ELM327 `SEARCHING...` line before
+the real response, `NO DATA`/`STOPPED`/`?` errors, truncated and garbage
+input) — real coverage obtainable before any hardware exists, not just
+hand review.
+
 ## Consequences
 
 **Positive**
@@ -133,12 +143,11 @@ Tab5/Cardputer mirror code beyond the repo shell.
   screen."
 
 **Negative / open**
-- **Nothing in this ADR is hardware-verified.** No StickS3, no OBD2 BLE
-  adapter, no vehicle test yet. Status stays Proposed until at least Phase
-  A runs on real hardware.
-- PlatformIO board support for StickS3 is unconfirmed beyond community
-  reports of `esp32-s3-devkitc-1` working — board_build flags in
-  `platformio.ini` are a best-effort starting point, not a verified config.
+- **Not hardware-verified.** `pio run -e sticks3-obd2` succeeds (RAM 14.7%,
+  Flash 33.9%, confirming the `esp32-s3-devkitc-1` board profile + octal
+  PSRAM/USB-CDC build flags are at least buildable), but no StickS3, no
+  OBD2 BLE adapter, no vehicle test yet. Status stays Proposed until at
+  least Phase A runs on real hardware.
 - FFF0/FFF1/FFF2 vs. NUS vs. something else entirely is unknown until
   Phase A runs against the actual purchased adapter.
 - DriveIQ upload (HTTP/MQTT/whatever that repo expects) is intentionally

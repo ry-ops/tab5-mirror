@@ -28,6 +28,7 @@
 #include <BLEClient.h>
 #include <BLERemoteService.h>
 #include <BLERemoteCharacteristic.h>
+#include "obd2_parse.h"
 
 namespace {
 
@@ -106,22 +107,6 @@ void onNotify(BLERemoteCharacteristic*, uint8_t* data, size_t len, bool)
             gRxBuf += c;
         }
     }
-}
-
-// Parses "41 0C XX YY" (mode 01 PID 0C response) -> RPM, or -1 if not found.
-int parseRpm(const String& resp)
-{
-    int idx = resp.indexOf("41 0C");
-    if (idx < 0) idx = resp.indexOf("410C");
-    if (idx < 0) return -1;
-    // Pull the next two hex byte pairs after the "41 0C" marker, tolerating
-    // either spaced or unspaced hex.
-    String rest = resp.substring(idx);
-    rest.replace(" ", "");
-    if (rest.length() < 8) return -1; // "410C" + 4 hex digits
-    long a = strtol(rest.substring(4, 6).c_str(), nullptr, 16);
-    long b = strtol(rest.substring(6, 8).c_str(), nullptr, 16);
-    return static_cast<int>((a * 256 + b) / 4);
 }
 
 bool sendCommand(BLERemoteCharacteristic* txChar, const char* cmd, uint32_t timeoutMs)
@@ -234,7 +219,7 @@ void loop()
     }
     bool ok = sendCommand(gWriteChar, "010C", 2000);
     if (ok) {
-        int rpm = parseRpm(gRxBuf);
+        int rpm = obd2::parseRpm(gRxBuf.c_str());
         printLine(rpm >= 0 ? String("RPM: ") + rpm : String("RPM: parse failed: ") + gRxBuf);
     } else {
         printLine("RPM query timed out.");

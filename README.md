@@ -219,6 +219,15 @@ lines in `src/main.cpp`; the library owns no policy of its own.
 c++ -std=c++17 -O2 -o verify_codec tools/verify_codec.cpp && ./verify_codec
 ```
 
+## Verify the StickS3 OBD2 parser locally
+
+No hardware needed -- `src/obd2_parse.h` has no Arduino/BLE dependency, same
+split as the codec above. See [ADR 0058](docs/adr/0058-sticks3-ble-obd2-proof-of-life.md).
+
+```bash
+c++ -std=c++17 -O2 -o verify_obd2_parse tools/verify_obd2_parse.cpp && ./verify_obd2_parse
+```
+
 ## Test suite
 
 ```bash
